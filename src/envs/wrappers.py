@@ -7,21 +7,49 @@ from typing import Tuple
 import gym
 import numpy as np
 from PIL import Image
+from vmas import make_env
 
 
-def make_atari(id, size=64, max_episode_steps=None, noop_max=30, frame_skip=4, done_on_life_loss=False, clip_reward=False):
-    env = gym.make(id)
-    assert 'NoFrameskip' in env.spec.id or 'Frameskip' not in env.spec
+def make_atari(id, size=64, max_episode_steps=None, noop_max=30, frame_skip=4, done_on_life_loss=False, clip_reward=False, device = 'cpu'):
+    if 'vmas' in id :
+        env = make_env( scenario_name= id.split('.')[1],
+                        num_envs=1,
+                        device=device,
+                        continuous_actions=False,
+                        wrapper=None,
+                        max_steps= 200,
+                        # Environment specific variables
+                        n_agents=1,
+                        penalise_by_time = True,
+                        use_relative_obs = True,
+                        use_distance_reward = True,
+                        penalise_by_collision = True,
+                        agent_info_first = True,
+                        n_obstacles = 4,
+                        food_reward = 15,
+                        collision_penalty = -10,
+                        time_penalty = -0.5,
+                        
+                        t_positive_progress_coeff = 1, t_negative_progress_coeff = 1,
+                        c_positive_progress_coeff = 0.1, c_negative_progress_coeff = 0.1,
+                        use_distance_reciprocal = False,
+                        collision_reward_range = 0.3)
+        env = VmasWrapper(env)
+        
+    else:
+        env = gym.make(id)
+        assert 'NoFrameskip' in env.spec.id or 'Frameskip' not in env.spec
     env = ResizeObsWrapper(env, (size, size))
     if clip_reward:
         env = RewardClippingWrapper(env)
-    if max_episode_steps is not None:
+    if max_episode_steps is not None and 'vmas' not in id:
         env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
-    if noop_max is not None:
+    if noop_max is not None and 'vmas' not in id:
         env = NoopResetEnv(env, noop_max=noop_max)
-    env = MaxAndSkipEnv(env, skip=frame_skip)
-    if done_on_life_loss:
-        env = EpisodicLifeEnv(env)
+    if 'vmas' not in id:
+        env = MaxAndSkipEnv(env, skip=frame_skip)
+        if done_on_life_loss:
+            env = EpisodicLifeEnv(env)
     return env
 
 
@@ -30,7 +58,7 @@ class ResizeObsWrapper(gym.ObservationWrapper):
         gym.ObservationWrapper.__init__(self, env)
         self.size = tuple(size)
         self.observation_space = gym.spaces.Box(low=0, high=255, shape=(size[0], size[1], 3), dtype=np.uint8)
-        self.unwrapped.original_obs = None
+        #self.unwrapped.original_obs = None
 
     def resize(self, obs: np.ndarray):
         img = Image.fromarray(obs)
@@ -38,9 +66,25 @@ class ResizeObsWrapper(gym.ObservationWrapper):
         return np.array(img)
 
     def observation(self, observation: np.ndarray) -> np.ndarray:
-        self.unwrapped.original_obs = observation
+        #self.unwrapped.original_obs = observation
         return self.resize(observation)
 
+class VmasWrapper(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+
+    def step(self, action):
+        obs, rews, dones, info = self.env.step(action)
+        obs2 = self.get_obs()
+        return obs2, rews, dones, info
+    
+    def get_obs(self):
+        return self.env.render(mode="rgb_array", agent_index_focus=None,visualize_when_rgb=True)
+    
+    def reset(self, **kwargs):
+        self.env.reset(**kwargs)
+        obs2 = self.get_obs()
+        return obs2
 
 class RewardClippingWrapper(gym.RewardWrapper):
     def reward(self, reward):

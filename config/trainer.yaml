@@ -10,8 +10,8 @@ wandb:
   mode: online
   project: iris
   entity: null
-  name: null
-  group: null
+  name: IrisImage
+  group: iris
   tags: null
   notes: null
 
@@ -41,7 +41,7 @@ collection:
       num_steps: 200
       burn_in: ${training.actor_critic.burn_in}
   test:
-    num_envs: 8
+    num_envs: 1
     num_episodes_to_save: ${collection.train.num_episodes_to_save}
     config:
       epsilon: 0.0
@@ -58,20 +58,20 @@ training:
     batch_num_samples: 256
     grad_acc_steps: 1
     max_grad_norm: 10.0
-    start_after_epochs: 5
+    start_after_epochs: 0 #5
     steps_per_epoch: 200
   world_model:
     batch_num_samples: 64
     grad_acc_steps: 1
     max_grad_norm: 10.0
     weight_decay: 0.01
-    start_after_epochs: 25
+    start_after_epochs: 0 #25
     steps_per_epoch: 200
   actor_critic:
     batch_num_samples: 64
     grad_acc_steps: 1
     max_grad_norm: 10.0
-    start_after_epochs: 50
+    start_after_epochs: 0 #50
     steps_per_epoch: 200
     imagine_horizon: ${common.sequence_length}
     burn_in: 20

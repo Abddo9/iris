@@ -49,19 +49,26 @@ class Collector:
         pbar = tqdm(total=num_steps if num_steps is not None else num_episodes, desc=f'Experience collection ({self.dataset.name})', file=sys.stdout)
 
         while not should_stop(steps, episodes):
-
-            observations.append(self.obs)
-            obs = rearrange(torch.FloatTensor(self.obs).div(255), 'n h w c -> n c h w').to(agent.device)
-            act = agent.act(obs, should_sample=should_sample, temperature=temperature).cpu().numpy()
-
+            
+            env_actions = []
+            #TODO fix this for multi-agents
+            #for i, obs in enumerate(self.obs):
+            obs_tensor = rearrange(torch.FloatTensor(self.obs).div(255), 'n h w c -> n c h w').to(agent.device)
+            observations.append(np.copy(self.obs))
+            act = agent.act(obs_tensor, should_sample=should_sample, temperature=temperature).cpu().numpy()
+                
             if random.random() < epsilon:
-                act = self.heuristic.act(obs).cpu().numpy()
+                act = self.heuristic.act(obs_tensor).cpu().detach().numpy()
 
-            self.obs, reward, done, _ = self.env.step(act)
-
+            env_actions.append(torch.tensor(act, device=agent.device,).repeat(1, 1))
             actions.append(act)
-            rewards.append(reward)
-            dones.append(done)
+            
+            self.obs, reward, done, _ = self.env.step(env_actions)
+
+            for i in range(len(reward)):
+                rewards.append(reward[i])
+                dones.append(done)
+
 
             new_steps = len(self.env.mask_new_dones)
             steps += new_steps
