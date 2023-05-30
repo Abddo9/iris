@@ -33,7 +33,8 @@ def make_atari(id, size=64, max_episode_steps=None, noop_max=30, frame_skip=4, d
                         t_positive_progress_coeff = 1, t_negative_progress_coeff = 1,
                         c_positive_progress_coeff = 0.1, c_negative_progress_coeff = 0.1,
                         use_distance_reciprocal = False,
-                        collision_reward_range = 0.3)
+                        collision_reward_range = 0.3,
+                        use_clear_target = True)
         env = VmasWrapper(env)
         
     else:

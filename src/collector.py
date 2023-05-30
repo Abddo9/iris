@@ -14,6 +14,9 @@ from envs import SingleProcessEnv, MultiProcessEnv
 from episode import Episode
 from utils import EpisodeDirManager, RandomHeuristic
 
+import cv2
+
+
 
 class Collector:
     def __init__(self, env: Union[SingleProcessEnv, MultiProcessEnv], dataset: EpisodesDataset, episode_dir_manager: EpisodeDirManager) -> None:
@@ -23,11 +26,14 @@ class Collector:
         self.obs = self.env.reset()
         self.episode_ids = [None] * self.env.num_envs
         self.heuristic = RandomHeuristic(self.env.num_actions)
+        self.episode_num = 0
+        self.max_average_reward = -10000
 
     @torch.no_grad()
     def collect(self, agent: Agent, epoch: int, epsilon: float, should_sample: bool, temperature: float, burn_in: int, *, num_steps: Optional[int] = None, num_episodes: Optional[int] = None):
         assert self.env.num_actions == agent.world_model.act_vocab_size
         assert 0 <= epsilon <= 1
+        self.episode_num += 1
 
         assert (num_steps is None) != (num_episodes is None)
         should_stop = lambda steps, episodes: steps >= num_steps if num_steps is not None else episodes >= num_episodes
@@ -66,7 +72,7 @@ class Collector:
             self.obs, reward, done, _ = self.env.step(env_actions)
 
             for i in range(len(reward)):
-                rewards.append(reward[i])
+                rewards.append(reward[i].cpu().detach().numpy().tolist())
                 dones.append(done)
 
 
@@ -118,6 +124,29 @@ class Collector:
 
     def add_experience_to_dataset(self, observations: List[np.ndarray], actions: List[np.ndarray], rewards: List[np.ndarray], dones: List[np.ndarray]) -> None:
         assert len(observations) == len(actions) == len(rewards) == len(dones)
+
+        average_reward = np.array(rewards).reshape(-1).mean()
+        if observations != None and len(observations)>5 and (self.max_average_reward < average_reward or self.episode_num % 200 == 0):
+            if self.max_average_reward < average_reward:
+                self.max_average_reward = average_reward
+                video_name = self.dataset.name + "_best.mp4"
+            else:
+                video_name = self.dataset.name + "_" + str(self.episode_num) + ".mp4"
+
+            # Produce a video
+            video = cv2.VideoWriter(
+                video_name,
+                cv2.VideoWriter_fourcc(*"mp4v"),
+                1 / self.env.env.world.dt,  # FPS
+                (observations[0][0].shape[1], observations[0][0].shape[0]),
+            )
+            for img in observations:
+                im = img[0]
+                im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
+                video.write(im)
+            video.release()
+            print("video stored", video_name)
+
         for i, (o, a, r, d) in enumerate(zip(*map(lambda arr: np.swapaxes(arr, 0, 1), [observations, actions, rewards, dones]))):  # Make everything (N, T, ...) instead of (T, N, ...)
             episode = Episode(
                 observations=torch.ByteTensor(o).permute(0, 3, 1, 2).contiguous(),  # channel-first

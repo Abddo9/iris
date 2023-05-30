@@ -1,5 +1,5 @@
 from typing import Any, Tuple
-
+import torch
 import numpy as np
 
 from .done_tracker import DoneTrackerEnv
@@ -19,11 +19,15 @@ class SingleProcessEnv(DoneTrackerEnv):
         obs = self.env.reset()
         return obs[None, ...]
 
-    def step(self, action) -> Tuple[np.ndarray, np.ndarray, np.ndarray, Any]:
-        obs, reward, done, _ = self.env.step(action)  # action is supposed to be ndarray (1,)
-        done = np.array([done])
+    def step(self, action):
+        obs, reward, done, _ = self.env.step(action)  
+        if torch.is_tensor(done):
+            done = done.cpu().detach().numpy()     # 1 True/False
+        else:
+            done = np.array([done])
+        #obs = np.array([ob.cpu().detach().numpy().tolist() for ob in obs], dtype=float)
         self.update_done_tracker(done)
-        return obs[None, ...], np.array([reward]), done, None
+        return obs[None, ...], reward, done, None
 
     def render(self) -> None:
         self.env.render()
