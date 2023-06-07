@@ -115,7 +115,7 @@ class EpisodesDataset:
 
     def load_disk_checkpoint(self, directory: Path) -> None:
         assert directory.is_dir() and len(self.episodes) == 0
-        episode_ids = sorted([int(p.stem) for p in directory.iterdir()])
+        episode_ids = sorted([int(p.stem) for p in directory.iterdir() if 'best' not in p.stem])
         self.num_seen_episodes = episode_ids[-1] + 1
         for episode_id in episode_ids:
             episode = Episode(**torch.load(directory / f'{episode_id}.pt'))

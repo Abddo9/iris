@@ -32,6 +32,7 @@ common:
 collection:
   train:
     num_envs: 1
+    start_after_epochs: 800
     stop_after_epochs: 5000
     num_episodes_to_save: 10
     config:
@@ -42,6 +43,7 @@ collection:
       burn_in: ${training.actor_critic.burn_in}
   test:
     num_envs: 1
+    start_after_epochs: 800
     num_episodes_to_save: ${collection.train.num_episodes_to_save}
     config:
       epsilon: 0.0
@@ -59,6 +61,7 @@ training:
     grad_acc_steps: 1
     max_grad_norm: 10.0
     start_after_epochs: 0
+    stop_after_epochs: 800
     steps_per_epoch: 25
   world_model:
     batch_num_samples: 64
@@ -66,12 +69,13 @@ training:
     max_grad_norm: 10.0
     weight_decay: 0.01
     start_after_epochs: 5
+    stop_after_epochs: 800
     steps_per_epoch: 25
   actor_critic:
     batch_num_samples: 64
     grad_acc_steps: 1
     max_grad_norm: 10.0
-    start_after_epochs: 10
+    start_after_epochs: 800
     steps_per_epoch: 25
     imagine_horizon: ${common.sequence_length}
     burn_in: 20

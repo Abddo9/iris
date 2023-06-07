@@ -97,6 +97,13 @@ class Trainer:
         if cfg.common.resume:
             self.load_checkpoint()
 
+        ppo_eps_path = Path('../../../../../MAPPO/onpolicy/scripts/train_mpe_scripts/media/episodes')
+        self.train_dataset.load_disk_checkpoint(ppo_eps_path)
+        self.test_dataset.load_disk_checkpoint(ppo_eps_path)
+
+        print("len(self.train_dataset)", len(self.train_dataset.episodes))
+        quit()
+
     def run(self) -> None:
 
         for epoch in range(self.start_epoch, 1 + self.cfg.common.epochs):
@@ -106,13 +113,14 @@ class Trainer:
             to_log = []
 
             if self.cfg.training.should:
-                if epoch <= self.cfg.collection.train.stop_after_epochs:
+                if epoch > self.cfg.collection.train.start_after_epochs and epoch <= self.cfg.collection.train.stop_after_epochs:
                     to_log += self.train_collector.collect(self.agent, epoch, **self.cfg.collection.train.config)
                 to_log += self.train_agent(epoch)
 
             if self.cfg.evaluation.should and (epoch % self.cfg.evaluation.every == 0):
-                self.test_dataset.clear()
-                to_log += self.test_collector.collect(self.agent, epoch, **self.cfg.collection.test.config)
+                if epoch > self.cfg.collection.test.start_after_epochs:
+                    self.test_dataset.clear()
+                    to_log += self.test_collector.collect(self.agent, epoch, **self.cfg.collection.test.config)
                 to_log += self.eval_agent(epoch)
 
             if self.cfg.training.should:
@@ -136,11 +144,11 @@ class Trainer:
 
         w = self.cfg.training.sampling_weights
 
-        if epoch > cfg_tokenizer.start_after_epochs:
+        if epoch > cfg_tokenizer.start_after_epochs and epoch <= cfg_tokenizer.stop_after_epochs:
             metrics_tokenizer = self.train_component(self.agent.tokenizer, self.optimizer_tokenizer, sequence_length=1, sample_from_start=True, sampling_weights=w, **cfg_tokenizer)
         self.agent.tokenizer.eval()
 
-        if epoch > cfg_world_model.start_after_epochs:
+        if epoch > cfg_world_model.start_after_epochs and epoch <= cfg_world_model.stop_after_epochs:
             metrics_world_model = self.train_component(self.agent.world_model, self.optimizer_world_model, sequence_length=self.cfg.common.sequence_length, sample_from_start=True, sampling_weights=w, tokenizer=self.agent.tokenizer, **cfg_world_model)
         self.agent.world_model.eval()
 

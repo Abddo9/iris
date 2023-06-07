@@ -70,7 +70,7 @@ class Episode:
         return segment
 
     def compute_metrics(self) -> EpisodeMetrics:
-        return EpisodeMetrics(len(self), self.rewards.sum())
+        return EpisodeMetrics(len(self), self.rewards.mean()*len(self))
 
     def save(self, path: Path) -> None:
         torch.save(self.__dict__, path)
