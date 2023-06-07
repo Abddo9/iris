@@ -17,5 +17,5 @@
 
 source ~/scratch/envs/iris3/bin/activate
 
-xvfb-run -a python3 src/main.py env.train.id=vmas.dispersion_with_obstacles common.device=cuda:0 wandb.mode=offline
+xvfb-run -a python3 src/main.py env.train.id=mpe.simple_spread common.device=cuda:0 wandb.mode=offline
 

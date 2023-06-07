@@ -1,1 +1,2 @@
 use_original_obs: False
+num_agents: ${env.train.num_agents}

@@ -3,14 +3,53 @@ Credits to https://github.com/openai/baselines/blob/master/baselines/common/atar
 """
 
 from typing import Tuple
+import time
 
 import gym
 import numpy as np
 from PIL import Image
 from vmas import make_env
+import torch
+from env_wrappers import SubprocVecEnv, DummyVecEnv
+from mpe.MPE_env import MPEEnv
+import argparse
+
+def make_train_env(all_args):
+    def get_env_fn(rank):
+        def init_env():
+            if all_args.env_name == "MPE":
+                env = MPEEnv(all_args)
+            else:
+                print("Can not support the " +
+                      all_args.env_name + "environment.")
+                raise NotImplementedError
+            env.seed(all_args.seed + rank * 1000)
+            return env
+        return init_env
+    if all_args.n_rollout_threads == 1:
+        return DummyVecEnv([get_env_fn(0)])
+    else:
+        return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)])
 
 
-def make_atari(id, size=64, max_episode_steps=None, noop_max=30, frame_skip=4, done_on_life_loss=False, clip_reward=False, device = 'cpu'):
+def get_mpe_args(num_agents):
+    parser = argparse.ArgumentParser(
+        description='onpolicy', formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--scenario_name', type=str,
+                        default='simple_spread', help="Which scenario to run on")
+    parser.add_argument("--num_landmarks", type=int, default=3)
+    parser.add_argument('--num_agents', type=int, default=num_agents, help="number of players")
+    parser.add_argument('--episode_length', type=int, default=25, help="Max length for any episode")
+    parser.add_argument("--seed", type=int, default=1, help="Random seed for numpy/torch")
+    parser.add_argument("--env_name", type=str, default='MPE', help="specify the name of environment")
+    parser.add_argument("--n_rollout_threads", type=int, default=1, help="Number of parallel envs for training rollouts")
+    parser.add_argument("--n_eval_rollout_threads", type=int, default=1, help="Number of parallel envs for evaluating rollouts")
+    args, unknown = parser.parse_known_args()
+    return args
+
+
+def make_atari(id, size=64, max_episode_steps=None, noop_max=30, frame_skip=4, 
+               done_on_life_loss=False, clip_reward=False, device = 'cpu', num_agents=3):
     if 'vmas' in id :
         env = make_env( scenario_name= id.split('.')[1],
                         num_envs=1,
@@ -36,7 +75,9 @@ def make_atari(id, size=64, max_episode_steps=None, noop_max=30, frame_skip=4, d
                         collision_reward_range = 0.3,
                         use_clear_target = True)
         env = VmasWrapper(env)
-        
+    elif 'mpe' in id:
+        env = make_train_env(get_mpe_args(num_agents)) 
+        env = MPEWrapper(env)
     else:
         env = gym.make(id)
         assert 'NoFrameskip' in env.spec.id or 'Frameskip' not in env.spec
@@ -45,9 +86,9 @@ def make_atari(id, size=64, max_episode_steps=None, noop_max=30, frame_skip=4, d
         env = RewardClippingWrapper(env)
     if max_episode_steps is not None and 'vmas' not in id:
         env = gym.wrappers.TimeLimit(env, max_episode_steps=max_episode_steps)
-    if noop_max is not None and 'vmas' not in id:
+    if noop_max is not None and 'vmas' not in id  and 'mpe' not in id:
         env = NoopResetEnv(env, noop_max=noop_max)
-    if 'vmas' not in id:
+    if 'vmas' not in id and 'mpe' not in id:
         env = MaxAndSkipEnv(env, skip=frame_skip)
         if done_on_life_loss:
             env = EpisodicLifeEnv(env)
@@ -62,9 +103,12 @@ class ResizeObsWrapper(gym.ObservationWrapper):
         #self.unwrapped.original_obs = None
 
     def resize(self, obs: np.ndarray):
-        img = Image.fromarray(obs)
-        img = img.resize(self.size, Image.BILINEAR)
-        return np.array(img)
+        images = []
+        for ob in obs:
+            img = Image.fromarray(ob)
+            img = img.resize(self.size, Image.BILINEAR)
+            images.append(np.array(img))
+        return np.array(images)
 
     def observation(self, observation: np.ndarray) -> np.ndarray:
         #self.unwrapped.original_obs = observation
@@ -86,6 +130,29 @@ class VmasWrapper(gym.Wrapper):
         self.env.reset(**kwargs)
         obs2 = self.get_obs()
         return obs2
+
+class MPEWrapper(gym.Wrapper):
+    def __init__(self, env):
+        gym.Wrapper.__init__(self, env)
+
+    def step(self, action):
+        tmp_obs, rews, dones, info = self.env.step(action)
+        obs = self.get_obs(tmp_obs.shape[1])
+        return obs, rews, dones, info
+    
+    def get_obs(self, n_agents):
+        img_obs = []
+        for i in range(n_agents):
+            obs = self.env.render(mode="rgb_array", agent_index_focus=i,
+                        visualize_when_rgb=True)[0]
+            img_obs.append(obs)
+        return np.array(img_obs)
+    
+    
+    def reset(self, **kwargs):
+        obs = self.env.reset(**kwargs)
+        obs = self.get_obs(obs.shape[1])
+        return obs
 
 class RewardClippingWrapper(gym.RewardWrapper):
     def reward(self, reward):

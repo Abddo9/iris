@@ -1,5 +1,5 @@
 _target_: models.TransformerConfig
-tokens_per_block: 17
+tokens_per_block: 49
 max_blocks: 20
 attention: 'causal'
 num_layers: 10
@@ -8,3 +8,5 @@ embed_dim: 256
 embed_pdrop: 0.1
 resid_pdrop: 0.1
 attn_pdrop: 0.1
+num_agents: ${env.train.num_agents}
+continuous_reward: True

@@ -20,6 +20,7 @@ class EncoderDecoderConfig:
     attn_resolutions: List[int]
     out_ch: int
     dropout: float
+    num_agents: int
 
 
 class Encoder(nn.Module):

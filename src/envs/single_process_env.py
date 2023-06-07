@@ -17,17 +17,15 @@ class SingleProcessEnv(DoneTrackerEnv):
     def reset(self) -> np.ndarray:
         self.reset_done_tracker()
         obs = self.env.reset()
-        return obs[None, ...]
+        return obs
 
     def step(self, action):
         obs, reward, done, _ = self.env.step(action)  
         if torch.is_tensor(done):
             done = done.cpu().detach().numpy()     # 1 True/False
-        else:
-            done = np.array([done])
         #obs = np.array([ob.cpu().detach().numpy().tolist() for ob in obs], dtype=float)
         self.update_done_tracker(done)
-        return obs[None, ...], reward, done, None
+        return obs, reward, done, None
 
     def render(self) -> None:
         self.env.render()

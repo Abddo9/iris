@@ -45,7 +45,7 @@ class Tokenizer(nn.Module):
 
     def compute_loss(self, batch: Batch, **kwargs: Any) -> LossWithIntermediateLosses:
         assert self.lpips is not None
-        observations = self.preprocess_input(rearrange(batch['observations'], 'b t c h w -> (b t) c h w'))
+        observations = self.preprocess_input(rearrange(batch['observations'], 'b 1 t h w c -> (b t) c h w')) 
         z, z_quantized, reconstructions = self(observations, should_preprocess=False, should_postprocess=False)
 
         # Codebook loss. Notes:
@@ -59,7 +59,7 @@ class Tokenizer(nn.Module):
 
         return LossWithIntermediateLosses(commitment_loss=commitment_loss, reconstruction_loss=reconstruction_loss, perceptual_loss=perceptual_loss)
 
-    def encode(self, x: torch.Tensor, should_preprocess: bool = False) -> TokenizerEncoderOutput:
+    def encode(self, x: torch.Tensor, should_preprocess: bool = False) -> TokenizerEncoderOutput:        
         if should_preprocess:
             x = self.preprocess_input(x)
         shape = x.shape  # (..., C, H, W)
@@ -85,6 +85,8 @@ class Tokenizer(nn.Module):
         z_q = z_q.view(-1, *shape[-3:])
         z_q = self.post_quant_conv(z_q)
         rec = self.decoder(z_q)
+        
+        #TODO shape soes not look noce when AC trainig
         rec = rec.reshape(*shape[:-3], *rec.shape[1:])
         if should_postprocess:
             rec = self.postprocess_output(rec)

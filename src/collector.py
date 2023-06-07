@@ -49,31 +49,32 @@ class Collector:
             segmented_episodes = [episode.segment(start=len(episode) - burn_in, stop=len(episode), should_pad=True) for episode in current_episodes]
             mask_padding = torch.stack([episode.mask_padding for episode in segmented_episodes], dim=0).to(agent.device)
             burnin_obs = torch.stack([episode.observations for episode in segmented_episodes], dim=0).float().div(255).to(agent.device)
+            burnin_obs = rearrange(burnin_obs, '1 b a w h c -> (b a) c w h')
             burnin_obs_rec = torch.clamp(agent.tokenizer.encode_decode(burnin_obs, should_preprocess=True, should_postprocess=True), 0, 1)
 
-        agent.actor_critic.reset(n=self.env.num_envs, burnin_observations=burnin_obs_rec, mask_padding=mask_padding)
+        #TODO HC
+        if burnin_obs_rec is not None:
+            burnin_obs_rec = burnin_obs_rec.reshape(3, -1, *burnin_obs_rec.shape[1:])
+        agent.actor_critic.reset(n=3, burnin_observations=burnin_obs_rec, mask_padding=mask_padding)
         pbar = tqdm(total=num_steps if num_steps is not None else num_episodes, desc=f'Experience collection ({self.dataset.name})', file=sys.stdout)
 
         while not should_stop(steps, episodes):
-            
-            env_actions = []
-            #TODO fix this for multi-agents
-            #for i, obs in enumerate(self.obs):
             obs_tensor = rearrange(torch.FloatTensor(self.obs).div(255), 'n h w c -> n c h w').to(agent.device)
             observations.append(np.copy(self.obs))
             act = agent.act(obs_tensor, should_sample=should_sample, temperature=temperature).cpu().numpy()
                 
             if random.random() < epsilon:
-                act = self.heuristic.act(obs_tensor).cpu().detach().numpy()
+                act = self.heuristic.act(obs_tensor).cpu().detach().numpy() 
 
-            env_actions.append(torch.tensor(act, device=agent.device,).repeat(1, 1))
-            actions.append(act)
-            
+            actions.append(act.reshape(-1,1).tolist())
+
+            env_actions = act.reshape(1, -1, 1) #num_envs, num_agents, 1
+            env_actions = np.squeeze(np.eye(5)[env_actions],2)
+                    
             self.obs, reward, done, _ = self.env.step(env_actions)
 
-            for i in range(len(reward)):
-                rewards.append(reward[i].cpu().detach().numpy().tolist())
-                dones.append(done)
+            rewards.append(reward[0,:])
+            dones.append(np.array(done).reshape(-1,1).tolist())
 
 
             new_steps = len(self.env.mask_new_dones)
@@ -125,37 +126,39 @@ class Collector:
     def add_experience_to_dataset(self, observations: List[np.ndarray], actions: List[np.ndarray], rewards: List[np.ndarray], dones: List[np.ndarray]) -> None:
         assert len(observations) == len(actions) == len(rewards) == len(dones)
 
-        average_reward = np.array(rewards).reshape(-1).mean()
-        if observations != None and len(observations)>5 and (self.max_average_reward < average_reward or self.episode_num % 200 == 0):
-            if self.max_average_reward < average_reward:
-                self.max_average_reward = average_reward
-                video_name = self.dataset.name + "_best.mp4"
-            else:
-                video_name = self.dataset.name + "_" + str(self.episode_num) + ".mp4"
+        #average_reward = np.array(rewards).reshape(-1).mean()
+        #if observations != None and len(observations)>5 and (self.max_average_reward < average_reward or self.episode_num % 200 == 0):
+            #if self.max_average_reward < average_reward:
+              #  self.max_average_reward = average_reward
+             #   video_name = self.dataset.name + "_best.mp4"
+            #else:
+             #   video_name = self.dataset.name + "_" + str(self.episode_num) + ".mp4"
 
             # Produce a video
-            video = cv2.VideoWriter(
-                video_name,
-                cv2.VideoWriter_fourcc(*"mp4v"),
-                1 / self.env.env.world.dt,  # FPS
-                (observations[0][0].shape[1], observations[0][0].shape[0]),
-            )
-            for img in observations:
-                im = img[0]
-                im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
-                video.write(im)
-            video.release()
-            print("video stored", video_name)
+            #video = cv2.VideoWriter(
+            #    video_name,
+            #    cv2.VideoWriter_fourcc(*"mp4v"),
+            #    1 / self.env.env.world.dt,  # FPS
+            #    (observations[0][0].shape[1], observations[0][0].shape[0]),
+            #)
+            #for img in observations:
+            #    im = img[0]
+            #    im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
+            #    video.write(im)
+            #video.release()
+            #print("video stored", video_name)
 
-        for i, (o, a, r, d) in enumerate(zip(*map(lambda arr: np.swapaxes(arr, 0, 1), [observations, actions, rewards, dones]))):  # Make everything (N, T, ...) instead of (T, N, ...)
-            episode = Episode(
-                observations=torch.ByteTensor(o).permute(0, 3, 1, 2).contiguous(),  # channel-first
-                actions=torch.LongTensor(a),
-                rewards=torch.FloatTensor(r),
-                ends=torch.LongTensor(d),
-                mask_padding=torch.ones(d.shape[0], dtype=torch.bool),
+        #for i, (o, a, r, d) in enumerate(zip(*map(lambda arr: np.swapaxes(arr, 0, 1), [observations, actions, rewards, dones]))):  # Make everything (N, T, ...) instead of (T, N, ...)
+        i = 0               
+        episode = Episode(
+                observations=torch.FloatTensor(np.array(observations)),  # channel-first 
+                actions=torch.LongTensor(np.array(actions)),
+                rewards=torch.FloatTensor(np.array(rewards)),
+                ends=torch.LongTensor(np.array(dones)),
+                mask_padding=torch.ones(len(dones), dtype=torch.bool),
             )
-            if self.episode_ids[i] is None:
-                self.episode_ids[i] = self.dataset.add_episode(episode)
-            else:
-                self.dataset.update_episode(self.episode_ids[i], episode)
+        
+        if self.episode_ids[i] is None:
+            self.episode_ids[i] = self.dataset.add_episode(episode)
+        else:
+            self.dataset.update_episode(self.episode_ids[i], episode)

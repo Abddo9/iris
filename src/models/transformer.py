@@ -28,6 +28,10 @@ class TransformerConfig:
     resid_pdrop: float
     attn_pdrop: float
 
+    num_agents: int
+    continuous_reward: int
+    
+
     @property
     def max_tokens(self):
         return self.tokens_per_block * self.max_blocks

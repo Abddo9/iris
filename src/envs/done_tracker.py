@@ -12,7 +12,7 @@ class DoneTrackerEnv:
         self.done_tracker = np.zeros(self.num_envs, dtype=np.uint8)
 
     def update_done_tracker(self, done: np.ndarray) -> None:
-        self.done_tracker = np.clip(2 * self.done_tracker + done, 0, 2)
+        self.done_tracker = np.clip(2 * self.done_tracker + done[0][0], 0, 2)
 
     @property
     def num_envs_done(self) -> int:
