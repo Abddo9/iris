@@ -102,7 +102,6 @@ class Trainer:
         self.test_dataset.load_disk_checkpoint(ppo_eps_path)
 
         print("len(self.train_dataset)", len(self.train_dataset.episodes))
-        quit()
 
     def run(self) -> None:
 
