@@ -108,9 +108,9 @@ class WorldModel(nn.Module):
             obs_tokens = tokenizer.encode(observations, should_preprocess=True).tokens  # (BL, K)
 
         a_shape = batch['actions'].shape
-        actions = batch['actions'].clone().detach().numpy().reshape(-1, a_shape[-2]).tolist()
+        actions = batch['actions'].cpu().clone().detach().numpy().reshape(-1, a_shape[-2]).tolist()
         act_tokens = torch.tensor([self.encode_actions(a) for a in actions])
-        act_tokens = act_tokens.view(a_shape[0], a_shape[1], 1)
+        act_tokens = act_tokens.view(a_shape[0], a_shape[1], 1).to(obs_tokens.device) #rearrange(batch['actions'], 'b l -> b l 1')
 
         obs_tokens = obs_tokens.view(a_shape[0], a_shape[1], -1)
         tokens = rearrange(torch.cat((obs_tokens, act_tokens), dim=-1), 'b l k1 -> b (l k1)')  # (B, L(K+1))

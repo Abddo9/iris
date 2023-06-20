@@ -64,7 +64,7 @@ class WorldModelEnv:
         if self.keys_values_wm.size + num_passes > self.world_model.config.max_tokens:
             _ = self.refresh_keys_values_with_initial_obs_tokens(self.obs_tokens)
 
-        token = action.clone().detach() if isinstance(action, torch.Tensor) else torch.tensor(action, dtype=torch.long)
+        token = action.cpu().clone().detach() if isinstance(action, torch.Tensor) else torch.tensor(action, dtype=torch.long)
         token = token.numpy().reshape(-1, self.world_model.num_agents).tolist()
         token = torch.tensor([self.world_model.encode_actions(a) for a in token])
         token = token.reshape(-1, 1).to(self.device)

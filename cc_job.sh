@@ -11,9 +11,9 @@
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
-#SBATCH --mem=40GB
-#SBATCH --time=0-00:10
-#SBATCH --account=def-ebrahimi
+#SBATCH --mem=190GB
+#SBATCH --time=7-00:00
+#SBATCH --account=def-dastonge
 
 source ~/scratch/envs/iris3/bin/activate
 
