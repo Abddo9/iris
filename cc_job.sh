@@ -5,15 +5,15 @@
 #SBATCH --mail-type=FAIL
 #SBATCH --mail-type=REQUEUE
 #SBATCH --mail-type=ALL
-#SBATCH --job-name=imgiris
+#SBATCH --job-name=PPOimgIris
 #SBATCH --output=%x-%j.out
 #SBATCH --nodes=1
 #SBATCH --gres=gpu:1
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=190GB
-#SBATCH --time=7-00:00
-#SBATCH --account=def-dastonge
+#SBATCH --time=1-03:30
+#SBATCH --account=rrg-ebrahimi
 
 source ~/scratch/envs/iris3/bin/activate
 

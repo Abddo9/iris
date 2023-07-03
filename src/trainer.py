@@ -97,11 +97,15 @@ class Trainer:
         if cfg.common.resume:
             self.load_checkpoint()
 
-        ppo_eps_path = Path('../../../../../MAPPO/onpolicy/scripts/train_mpe_scripts/media/episodes')
+        ppo_eps_path = Path('../../../../../../ImMAPPO/onpolicy/scripts/train_mpe_scripts/media/episodes')
         self.train_dataset.load_disk_checkpoint(ppo_eps_path)
         self.test_dataset.load_disk_checkpoint(ppo_eps_path)
 
         print("len(self.train_dataset)", len(self.train_dataset.episodes))
+        ep_idx = 0
+        for ep in self.train_dataset.episodes:
+            print("ep_idx", ep_idx, ep.observations.shape)
+            ep_idx +=1
 
     def run(self) -> None:
 
@@ -147,10 +151,18 @@ class Trainer:
             metrics_tokenizer = self.train_component(self.agent.tokenizer, self.optimizer_tokenizer, sequence_length=1, sample_from_start=True, sampling_weights=w, **cfg_tokenizer)
         self.agent.tokenizer.eval()
 
+        if epoch == cfg_tokenizer.stop_after_epochs:
+            print("Freezing the tokenizer")
+            self.freeze_component(self.agent.tokenizer)
+
         if epoch > cfg_world_model.start_after_epochs and epoch <= cfg_world_model.stop_after_epochs:
             metrics_world_model = self.train_component(self.agent.world_model, self.optimizer_world_model, sequence_length=self.cfg.common.sequence_length, sample_from_start=True, sampling_weights=w, tokenizer=self.agent.tokenizer, **cfg_world_model)
         self.agent.world_model.eval()
 
+        if epoch == cfg_world_model.stop_after_epochs:
+            print("Freezing the world_model")
+            self.freeze_component(self.agent.world_model)
+            
         if epoch > cfg_actor_critic.start_after_epochs:
             metrics_actor_critic = self.train_component(self.agent.actor_critic, self.optimizer_actor_critic, sequence_length=1 + self.cfg.training.actor_critic.burn_in, sample_from_start=False, sampling_weights=w, tokenizer=self.agent.tokenizer, world_model=self.agent.world_model, **cfg_actor_critic)
         self.agent.actor_critic.eval()
